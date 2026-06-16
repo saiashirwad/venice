@@ -1,0 +1,25 @@
+{
+  "name": "venice",
+  "module": "src/venice.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "topup": "bun run src/topup.ts",
+    "start": "bun run src/venice.ts",
+    "typecheck": "tsc --noEmit",
+    "prepare": "effect-language-service patch"
+  },
+  "dependencies": {
+    "@effect/ai": "^0.36.0",
+    "@effect/ai-openai": "^0.40.0",
+    "@effect/platform": "^0.94.0",
+    "effect": "^3.21.0",
+    "venice-x402-client": "^0.2.0",
+    "viem": "^2.52.2"
+  },
+  "devDependencies": {
+    "@effect/language-service": "^0.86.2",
+    "@types/bun": "latest",
+    "typescript": "^5"
+  }
+}
