@@ -1,16 +1,9 @@
 {
-  "name": "venice",
+  "name": "effect-x402-ai",
   "module": "src/venice.ts",
   "type": "module",
   "private": true,
   "scripts": {
-    "topup": "bun run src/topup.ts",
-    "start": "bun run src/venice.ts",
-    "telnyx": "bun run src/telnyx.ts",
-    "daydreams": "bun run src/daydreams.ts",
-    "elfa": "bun run src/elfa.ts",
-    "blockrun": "bun run src/blockrun.ts",
-    "messari": "bun run src/messari.ts",
     "typecheck": "tsc --noEmit",
     "prepare": "effect-language-service patch"
   },

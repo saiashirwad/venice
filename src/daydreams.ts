@@ -1,4 +1,3 @@
-import { LanguageModel } from "@effect/ai";
 import { FetchHttpClient } from "@effect/platform";
 import type {
   PaymentPayloadResult,
@@ -6,7 +5,7 @@ import type {
   SchemeNetworkClient,
 } from "@x402/core/types";
 import { wrapFetchWithPayment, x402Client } from "@x402/fetch";
-import { Data, Effect, Layer, Runtime } from "effect";
+import { Data, Effect, Layer as EffectLayer, Runtime as EffectRuntime } from "effect";
 import { createPublicClient, http } from "viem";
 import { base } from "viem/chains";
 import { mnemonicToAccount } from "viem/accounts";
@@ -16,7 +15,7 @@ import { X402LanguageModel } from "./x402/language-model.js";
 import { Wallet } from "./x402/wallet.js";
 
 const DAYDREAMS_API_URL = "https://ai.xgate.run/v1";
-const MODEL = "openai:gpt-5-nano";
+export const MODEL = "openai:gpt-5-nano";
 const PERMIT_DEADLINE_SECONDS = 60 * 60;
 const MAX_TOKENS = 1024;
 
@@ -99,7 +98,7 @@ const eip712Metadata = (requirement: PaymentRequirements) =>
 const createPermitScheme = (
   account: ReturnType<typeof mnemonicToAccount>,
 ): SchemeNetworkClient => {
-  const runtime = Runtime.defaultRuntime;
+  const runtime = EffectRuntime.defaultRuntime;
 
   const readNonce = (asset: `0x${string}`) =>
     Effect.tryPromise({
@@ -184,13 +183,13 @@ const createPermitScheme = (
   return {
     scheme: "upto",
     createPaymentPayload: (x402Version, requirement) =>
-      Runtime.runPromise(runtime)(
+      EffectRuntime.runPromise(runtime)(
         createPaymentPayload(x402Version, requirement),
       ),
   };
 };
 
-const DaydreamsPayments = Layer.effect(
+const DaydreamsPayments = EffectLayer.effect(
   FetchHttpClient.Fetch,
   Effect.gen(function* () {
     const { account } = yield* Wallet;
@@ -198,9 +197,9 @@ const DaydreamsPayments = Layer.effect(
     const client = new x402Client().register("eip155:8453", scheme);
     return wrapFetchWithPayment(globalThis.fetch, client) as typeof globalThis.fetch;
   }),
-).pipe(Layer.provide(Wallet.Default));
+).pipe(EffectLayer.provide(Wallet.Default));
 
-const DaydreamsModel = X402LanguageModel.make({
+export const Model = X402LanguageModel.make({
   model: MODEL,
   adapter: OpenAiChatAdapter.layer({
     id: "DaydreamsClient",
@@ -211,18 +210,4 @@ const DaydreamsModel = X402LanguageModel.make({
   payment: DaydreamsPayments,
 });
 
-const program = Effect.gen(function* () {
-  const response = yield* LanguageModel.generateText({
-    prompt: "Tell me a knock knock joke",
-  });
-  const { account } = yield* Wallet;
-
-  yield* Effect.log("Wallet: ", account.address);
-  yield* Effect.log("model: ", MODEL);
-  yield* Effect.log("response: ", response.text);
-}).pipe(Effect.provide(Layer.merge(DaydreamsModel, Wallet.Default)));
-
-Effect.runPromise(program).catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+export const Layer = EffectLayer.merge(Model, Wallet.Default);

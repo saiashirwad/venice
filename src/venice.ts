@@ -1,4 +1,3 @@
-import { LanguageModel } from "@effect/ai";
 import { OpenAiClient, OpenAiLanguageModel, Generated } from "@effect/ai-openai";
 import {
   FetchHttpClient,
@@ -77,14 +76,3 @@ const VeniceModel = OpenAiLanguageModel.layer({ model: MODEL }).pipe(
   Layer.provide(Layer.succeed(FetchHttpClient.Fetch, veniceFetch)),
 );
 
-const program = Effect.gen(function*() {
-  const response = yield* LanguageModel.generateText({
-    prompt: "Tell me a knock knock joke",
-  });
-
-  yield* Effect.log("Wallet: ", account.address)
-  yield* Effect.log("model: ", MODEL);
-  yield* Effect.log("response: ", response.text);
-}).pipe(Effect.provide(VeniceModel));
-
-Effect.runPromise(program)
