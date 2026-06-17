@@ -1,13 +1,11 @@
 import { OpenAiClient } from "@effect/ai-openai";
 import { Context } from "effect";
 
-export const TypeId = "~venice/X402LanguageModelAdapter" as const;
-
-export interface X402LanguageModelAdapter {
-  readonly [TypeId]: typeof TypeId;
+export interface Service {
   readonly createResponse: OpenAiClient.Service["createResponse"];
 }
 
-export const X402LanguageModelAdapter = Context.GenericTag<X402LanguageModelAdapter>(
-  "X402/LanguageModelAdapter",
-);
+export class X402LanguageModelAdapter extends Context.Service<
+  X402LanguageModelAdapter,
+  Service
+>()("X402/LanguageModelAdapter") {}

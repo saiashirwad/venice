@@ -1,41 +1,42 @@
-import { Config, Effect, Layer as EffectLayer, Schema } from "effect";
+import { Config, Effect, Schema, SchemaGetter } from "effect";
 
-import { CustomJsonAdapter } from "./x402/adapters/custom-json.js";
-import { X402LanguageModel } from "./x402/language-model.js";
+import * as CustomJsonAdapter from "./x402/adapters/custom-json.js";
+import * as X402LanguageModel from "./x402/language-model.js";
 import * as Payments from "./x402/payments.js";
-import { Wallet } from "./x402/wallet.js";
 
 const ELFA_API_URL = "https://api.elfa.ai/x402/v2";
 export const MODEL = "elfa-chat";
 
-const ElfaChatResponse = Schema.transform(
-  Schema.Struct({
-    data: Schema.Struct({
-      message: Schema.String,
-    }),
-  }),
-  Schema.Struct({
+const ElfaChatResponse = Schema.Struct({
+  data: Schema.Struct({
     message: Schema.String,
   }),
-  {
-    strict: true,
-    decode: (input) => ({ message: input.data.message }),
-    encode: (output) => ({ data: { message: output.message } }),
-  },
+}).pipe(
+  Schema.decodeTo(
+    Schema.Struct({
+      message: Schema.String,
+    }),
+    {
+      decode: SchemaGetter.transform((input) => ({ message: input.data.message })),
+      encode: SchemaGetter.transform((output) => ({
+        data: { message: output.message },
+      })),
+    },
+  ),
 );
 
 const getSpeed = Config.string("ELFA_SPEED").pipe(
   Effect.orElseSucceed(() => "expert"),
 );
 
-export const Model = X402LanguageModel.make({
+export const layer = X402LanguageModel.make({
   model: MODEL,
   adapter: CustomJsonAdapter.layer({
     id: "ElfaClient",
     apiUrl: ELFA_API_URL,
     endpoint: "/chat",
     model: MODEL,
-    buildRequest: ({ message }) =>
+    buildRequest: ({ message }: { readonly message: string }) =>
       Effect.map(getSpeed, (speed) => ({
         message,
         analysisType: "chat",
@@ -43,7 +44,5 @@ export const Model = X402LanguageModel.make({
       })),
     responseSchema: ElfaChatResponse,
   }),
-  payment: Payments.layer("eip155:*"),
+  payment: Payments.exact("eip155:*"),
 });
-
-export const Layer = EffectLayer.provideMerge(Model, Wallet.Default);
