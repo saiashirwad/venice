@@ -1,15 +1,12 @@
-import { Layer as EffectLayer } from "effect";
-
-import { OpenAiChatAdapter } from "./x402/adapters/openai-chat.js";
-import { X402LanguageModel } from "./x402/language-model.js";
+import * as OpenAiChatAdapter from "./x402/adapters/openai-chat.js";
+import * as X402LanguageModel from "./x402/language-model.js";
 import * as Payments from "./x402/payments.js";
-import { Wallet } from "./x402/wallet.js";
 
 const TELNYX_API_URL = "https://x402.telnyx.com/v1";
 export const MODEL = "MiniMaxAI/MiniMax-M2.7";
 const MAX_TOKENS = 512;
 
-export const Model = X402LanguageModel.make({
+export const layer = X402LanguageModel.make({
   model: MODEL,
   adapter: OpenAiChatAdapter.layer({
     id: "TelnyxClient",
@@ -17,7 +14,5 @@ export const Model = X402LanguageModel.make({
     model: MODEL,
     maxTokens: MAX_TOKENS,
   }),
-  payment: Payments.layer("eip155:*"),
+  payment: Payments.exact("eip155:*"),
 });
-
-export const Layer = EffectLayer.provideMerge(Model, Wallet.Default);

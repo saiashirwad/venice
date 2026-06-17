@@ -1,48 +1,33 @@
-import { Generated } from "@effect/ai-openai";
-import { HttpClient, HttpClientResponse } from "@effect/platform";
+import { Generated, OpenAiSchema } from "@effect/ai-openai";
+import { HttpClient, HttpClientResponse } from "effect/unstable/http";
 import { randomUUID } from "node:crypto";
 import { Effect, Schema } from "effect";
-
-type ResponseEncoded = Schema.Schema.Encoded<typeof Generated.Response>;
-
-const RESPONSE_DEFAULTS = {
-  object: "response",
-  parallel_tool_calls: false,
-  tools: [],
-  tool_choice: "auto",
-  temperature: null,
-  top_p: null,
-  metadata: {},
-  instructions: null,
-  incomplete_details: null,
-  error: null,
-} satisfies Partial<ResponseEncoded>;
 
 export type ResponsesInput = ReadonlyArray<{
   readonly role: string;
   readonly content: string | ReadonlyArray<{ readonly text?: string }>;
 }>;
 
-const ChatCompletionJson = Schema.Struct({
-  choices: Schema.optional(
-    Schema.Array(
-      Schema.Struct({
-        message: Schema.optional(
-          Schema.Record({ key: Schema.String, value: Schema.Unknown }),
-        ),
-        logprobs: Schema.optional(Schema.Unknown),
-      }).pipe(
-        Schema.extend(
-          Schema.Record({ key: Schema.String, value: Schema.Unknown }),
+const ChatCompletionJson = Schema.StructWithRest(
+  Schema.Struct({
+    choices: Schema.optional(
+      Schema.Array(
+        Schema.StructWithRest(
+          Schema.Struct({
+            message: Schema.optional(
+              Schema.Record(Schema.String, Schema.Unknown),
+            ),
+            logprobs: Schema.optional(Schema.Unknown),
+          }),
+          [Schema.Record(Schema.String, Schema.Unknown)],
         ),
       ),
     ),
-  ),
-}).pipe(
-  Schema.extend(Schema.Record({ key: Schema.String, value: Schema.Unknown })),
+  }),
+  [Schema.Record(Schema.String, Schema.Unknown)],
 );
 
-const readChatCompletionJson = Schema.decodeUnknown(ChatCompletionJson);
+const readChatCompletionJson = Schema.decodeUnknownEffect(ChatCompletionJson);
 
 export const toChatMessages = (input: ResponsesInput) =>
   input.map((message) => ({
@@ -53,35 +38,59 @@ export const toChatMessages = (input: ResponsesInput) =>
         : message.content.map((part) => part.text ?? "").join(""),
   }));
 
+/**
+ * Builds an `OpenAiSchema.Response` (the decoded Responses-API body) from
+ * primitive fields. This is the single boundary where we materialize the
+ * OpenAI Responses-API shape from our own data.
+ */
+export const makeResponse = (options: {
+  readonly id: string;
+  readonly created_at: number;
+  readonly model: string;
+  readonly text: string;
+  readonly usage?: {
+    readonly input_tokens: number;
+    readonly output_tokens: number;
+  };
+}): typeof OpenAiSchema.Response.Type => ({
+  id: options.id,
+  model: options.model,
+  created_at: options.created_at,
+  output: [
+    {
+      id: randomUUID(),
+      type: "message",
+      role: "assistant",
+      status: "completed",
+      content: [
+        {
+          type: "output_text",
+          text: options.text,
+          annotations: [],
+        },
+      ],
+    },
+  ],
+  usage: options.usage && {
+    input_tokens: options.usage.input_tokens,
+    output_tokens: options.usage.output_tokens,
+    total_tokens: options.usage.input_tokens + options.usage.output_tokens,
+  },
+});
+
 export const fromChatCompletion = (
   chat: typeof Generated.CreateChatCompletionResponse.Type,
-): Generated.Response =>
-  ({
-    ...RESPONSE_DEFAULTS,
+): typeof OpenAiSchema.Response.Type =>
+  makeResponse({
     id: chat.id,
     created_at: chat.created,
     model: chat.model,
-    status: "completed",
-    output: [
-      {
-        type: "message",
-        id: randomUUID(),
-        role: "assistant",
-        status: "completed",
-        content: [
-          {
-            type: "output_text",
-            text: chat.choices[0]?.message.content ?? "",
-            annotations: [],
-          },
-        ],
-      },
-    ],
+    text: chat.choices[0]?.message.content ?? "",
     usage: chat.usage && {
       input_tokens: chat.usage.prompt_tokens,
       output_tokens: chat.usage.completion_tokens,
     },
-  }) as unknown as Generated.Response;
+  });
 
 export const patchChatCompletionResponse = HttpClient.transformResponse(
   Effect.flatMap((response) => {
@@ -97,12 +106,11 @@ export const patchChatCompletionResponse = HttpClient.transformResponse(
         choices: body.choices?.map((choice) => ({
           logprobs: null,
           ...choice,
+          // `refusal` is a required (nullable) field the Daydreams response
+          // omits; the other message fields are optional and decode fine when
+          // absent, so we only backfill `refusal`.
           message: choice.message && {
             refusal: null,
-            annotations: null,
-            audio: null,
-            function_call: null,
-            tool_calls: [],
             ...choice.message,
           },
         })),
@@ -119,4 +127,3 @@ export const patchChatCompletionResponse = HttpClient.transformResponse(
     );
   }),
 );
-
